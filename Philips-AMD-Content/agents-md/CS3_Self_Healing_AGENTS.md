@@ -22,10 +22,11 @@
 
 ## 3. Golden rules for the coding agent
 
-1. Build first, small reviewable steps. 2. Never blind-accept. 3. Six-step cycle every lab step.
-4. Ten-point scaffold (§5) non-negotiable. 5. Guardrails (§6) are part of the build.
-6. **The Remediation agent PROPOSES; it never applies a production change on its own.**
-7. **Keep `README.md` current (§12)** — document what you build as you build it; update the README in
+1. **Spec-first (§13)** — SDD; **no code without a `SPEC-CS3-NNN` ID**, carried spec → code → test → PR.
+2. Build first, small reviewable steps. 3. Never blind-accept. 4. Six-step cycle every lab step.
+5. Ten-point scaffold (§5) non-negotiable. 6. Guardrails (§6) are part of the build.
+7. **The Remediation agent PROPOSES; it never applies a production change on its own.**
+8. **Keep `README.md` current (§12)** — document what you build as you build it; update the README in
 the **same** step as the code. A stale README is a defect.
 
 ## 4. Architecture to build
@@ -84,8 +85,9 @@ app/
     llm_client.py
     mcp_tools.py   # log_metrics_reader, alerting_hook, runbook_executor, ticket_rollback
   api/server.py
-  tests/           # include a test that a proposed fix CANNOT apply without approval
-.github/workflows/security.yml
+  tests/           # incl. a test that a proposed fix CANNOT apply without approval; tests carry spec IDs (§13)
+specs/             # one spec per behaviour, SPEC-CS3-NNN (§13); SPECS.md = the index
+.github/workflows/security.yml   # CI gate: scaffold + guardrail self-test + traceability check (§13)
 pyproject.toml · uv.lock · .env.example · AGENTS.md · README.md  (keep updated — §12)
 ```
 
@@ -96,6 +98,7 @@ uv sync --frozen
 uv run uvicorn app.api.server:app --reload
 uv run pytest
 uv run python -m app.core.guardrails --selftest
+uv run python scripts/trace_check.py   # traceability: every spec has code + test (§13)
 ```
 
 ## 10. Definition of Done
@@ -106,15 +109,17 @@ uv run python -m app.core.guardrails --selftest
 - [ ] MCP server live (4 tools) with auth + rate limit + audit
 - [ ] 🔒 Inject a plausible-but-harmful remediation → L4 stops it; audit chain shows why
 - [ ] Ten-point scaffold passes; CI gate green; committed
+- [ ] **Every behaviour has a `SPEC-CS3-NNN` ID, traced spec → code → test → PR** (§13); trace check green
 - [ ] **`README.md` written and current** — overview, setup, run steps, the 4 tools, guardrails,
   the human-gate rule, and the build log
 
 ## 11. Do / Don't
 
-**Do:** keep Remediation at "propose + rationale" · gate every executable tool behind L4 + allowlist ·
+**Do:** **spec-first — write/confirm the spec, then code (§13)** · carry the `SPEC-CS3-NNN` ID into code, test, PR ·
+keep Remediation at "propose + rationale" · gate every executable tool behind L4 + allowlist ·
 log the full signal→fix→approver chain · test that approval is non-skippable · **update `README.md` in the same step as the code**.
-**Don't:** let any agent apply a production change autonomously · run a tool outside the allowlist ·
-trust a confident proposal without the gate · return raw dicts · import the SDK in `core/` · **leave the README stale**.
+**Don't:** **write code without a spec ID** · let any agent apply a production change autonomously · run a tool
+outside the allowlist · trust a confident proposal without the gate · return raw dicts · import the SDK in `core/` · **leave the README stale**.
 
 ## 12. Documentation — `README.md` (create and keep updated)
 
@@ -140,3 +145,34 @@ always matches the current code. The `README.md` must contain, in this order:
 
 > **Rule:** add an agent, tool, guardrail, or endpoint → update the matching README section in the same
 > change. The README must make the human-gate rule unmissable. Start from the provided `README_SKELETON.md`.
+
+## 13. Spec-Driven Development (SDD) & Traceability — the method for ALL work
+
+Build CS3 **spec-first**. Nothing is coded until it has a spec with an ID, and that ID is carried all
+the way to the PR. Result: **end-to-end traceability** `spec → code → test → PR`, greppable by one ID.
+For this high-autonomy system, traceability is also your audit story — the human gate must trace back
+to the spec that mandated it.
+
+**Workflow — every behaviour:** (1) write the spec in `specs/` with a `SPEC-CS3-NNN` ID → (2) implement
+and tag the code → (3) write the test referencing the ID → (4) PR title carries the ID → (5) `grep -rn`
+the ID returns spec + code + test.
+
+**Spec ID scheme:** `SPEC-CS3-NNN` (zero-padded, never reused).
+
+**The four anchors — concrete CS3 example:**
+
+| Anchor | Example |
+|---|---|
+| **Spec** | `specs/SPEC-CS3-007.md` — "No production change applies without passing the L4 human gate" (+ row in `specs/SPECS.md`) |
+| **Code** | `# [SPEC-CS3-007] L4 governance gate — block apply without human approval` |
+| **Test** | `def test_spec_cs3_007_apply_blocked_without_approval(): ...` |
+| **PR/commit** | `feat(governance): non-skippable human gate [SPEC-CS3-007]` |
+
+- A spec is small and testable; link each to its scaffold check(s) and guardrail layer(s).
+- The **non-skippable-approval** test (§10) is the test for `SPEC-CS3-007` — name it with the ID.
+- **Traceability check in CI (§9) — `scripts/trace_check.py`:** every `SPEC-CS3-NNN` in `specs/` must
+  appear in ≥1 code file **and** ≥1 test; an orphan spec, or an ID with no spec, is a **FAIL**.
+
+> **Rule for the coding agent:** no code without a spec ID. If it doesn't exist, write the spec first
+> (`SPEC_SKELETON.md` provided), confirm it, then implement — carrying the ID into code, test, and PR.
+> Keep `specs/SPECS.md` updated as the index.

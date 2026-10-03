@@ -25,14 +25,16 @@
 
 ## 3. Golden rules for the coding agent (OpenCode)
 
-1. **Build first, explain second.** Produce working, scaffolded code; narrate briefly.
-2. **Never blind-accept.** Make changes in small, reviewable steps. The human validates each step.
-3. **Every lab step follows the six-step cycle:**
+1. **Spec-first (§13).** Build this app with **spec-driven development**. No code without a spec ID.
+   Carry that ID from the spec → into a code comment → into the test → into the PR. Full traceability.
+2. **Build first, explain second.** Produce working, scaffolded code; narrate briefly.
+3. **Never blind-accept.** Make changes in small, reviewable steps. The human validates each step.
+4. **Every lab step follows the six-step cycle:**
    `Define → Pre-Hook → Build → Post-Hook → Attack & Validate → Commit`.
-4. **The ten-point scaffold (§5) is non-negotiable.** Code that fails a check is not done.
-5. **Guardrails are part of the build (§6), not an afterthought.** Wire them at every seam.
-6. **No secrets in code, prompts, or commits.** No raw model output executed without validation.
-7. **Keep `README.md` current (§12).** Document what you build as you build it — if you change the
+5. **The ten-point scaffold (§5) is non-negotiable.** Code that fails a check is not done.
+6. **Guardrails are part of the build (§6), not an afterthought.** Wire them at every seam.
+7. **No secrets in code, prompts, or commits.** No raw model output executed without validation.
+8. **Keep `README.md` current (§12).** Document what you build as you build it — if you change the
    code, update the README in the **same** step. A stale README is a defect.
 
 ## 4. Architecture to build
@@ -90,9 +92,11 @@ app/
     llm_client.py  # typed resilient client (checks 3, 4)
   api/             # FastAPI MCP server — routes are adapters (check 8)
     server.py
-  tests/           # contract + property tests, LLM mocked (check 9)
-.github/workflows/security.yml   # CI gate (check 9 + guardrail self-test)
-pyproject.toml  ·  uv.lock  ·  .env.example  ·  AGENTS.md  ·  README.md  (keep updated — §12)
+  tests/           # contract + property tests, LLM mocked (check 9); tests carry spec IDs (§13)
+specs/             # one spec per behaviour, SPEC-<CS>-NNN  (§13 — the source of truth)
+  SPECS.md         # index: ID · title · status · code ref · test ref · PR
+.github/workflows/security.yml   # CI gate: scaffold + guardrail self-test + traceability check (§13)
+pyproject.toml · uv.lock · .env.example · AGENTS.md · README.md  (keep updated — §12)
 ```
 
 ## 9. Commands
@@ -100,8 +104,9 @@ pyproject.toml  ·  uv.lock  ·  .env.example  ·  AGENTS.md  ·  README.md  (ke
 ```bash
 uv sync --frozen                      # install the exact locked tree
 uv run uvicorn app.api.server:app --reload   # run the MCP server (dev)
-uv run pytest                         # contract + property tests
+uv run pytest                         # contract + property tests (each carries a spec ID)
 uv run python -m app.core.guardrails --selftest   # guardrail self-test
+uv run python scripts/trace_check.py  # traceability: every spec has code + test (§13)
 ```
 
 ## 10. Definition of Done (this session)
@@ -111,16 +116,18 @@ uv run python -m app.core.guardrails --selftest   # guardrail self-test
 - [ ] MCP server live with auth + rate limit + audit
 - [ ] 🔒 Re-run the red-team attacks — each is intercepted
 - [ ] Ten-point scaffold passes; CI gate green
+- [ ] **Every behaviour has a spec ID, traced spec → code → test → PR** (§13); traceability check green
 - [ ] **`README.md` written and current** — overview, setup, run steps, tools, guardrails, build log
 - [ ] Committed to the repo
 
 ## 11. Do / Don't (for the coding agent)
 
-**Do:** small steps · typed objects between agents · validate before execute · bound every loop ·
+**Do:** **spec-first — write/confirm the spec, then code (§13)** · carry the spec ID into code, test, and PR ·
+small steps · typed objects between agents · validate before execute · bound every loop ·
 commit often · keep the core pure · **update `README.md` in the same step as the code**.
-**Don't:** execute raw model output · expose an unbounded destructive tool · put secrets in code ·
-return raw dicts from endpoints · use sync I/O in async paths · skip the guardrail at any seam ·
-**leave the README stale or out of sync with the code**.
+**Don't:** **write code without a spec ID** · execute raw model output · expose an unbounded destructive
+tool · put secrets in code · return raw dicts from endpoints · use sync I/O in async paths · skip the
+guardrail at any seam · **leave the README stale or out of sync with the code**.
 
 ## 12. Documentation — `README.md` (create and keep updated)
 
@@ -145,3 +152,40 @@ The `README.md` must contain, in this order:
 > **Rule for the coding agent:** if you add an agent, a tool, a guardrail, or an endpoint, update the
 > matching README section in the same change. Keep it short, accurate, and copy-paste runnable.
 > A ready-to-fill `README_SKELETON.md` is provided — copy it to `README.md` and start from it.
+
+## 13. Spec-Driven Development (SDD) & Traceability — the method for ALL work
+
+Build this app **spec-first**. Nothing is coded until it has a spec with an ID, and that ID is carried
+all the way through to the PR. The result is **end-to-end traceability**:
+`spec → code → test → PR`, all greppable by one ID.
+
+**The workflow — every behaviour, no exceptions:**
+1. **Write the spec first** in `specs/` with a unique ID. One spec = one small, testable behaviour.
+2. **Implement it** — tag the code it touches with the spec ID in a comment.
+3. **Write the test(s)** for it — reference the same spec ID in the test name and/or a marker.
+4. **Commit / open the PR** with the spec ID in the title.
+5. **Verify the trace** — `grep -rn "SPEC-XX-003"` returns the spec, the code, and the test.
+
+**Spec ID scheme:** `SPEC-<CS>-NNN` — e.g. `SPEC-CS1-001`, `SPEC-CS1-002`, … zero-padded, **never reused**.
+
+**The four anchors — the same ID appears in all four:**
+
+| Anchor | Where | Example |
+|---|---|---|
+| **Spec** | `specs/SPEC-XX-003.md` (+ a row in `specs/SPECS.md`) — the source of truth | the behaviour, acceptance criteria, guardrail/scaffold link |
+| **Code** | a comment at the boundary it implements | `# [SPEC-XX-003] validate + classify source before ingest` |
+| **Test** | the test name and/or a marker | `def test_spec_xx_003_rejects_unclassified(): ...` |
+| **PR / commit** | the title | `feat(ingest): source classification [SPEC-XX-003]` |
+
+- **A spec is small and testable.** If you can't write a pass/fail test for it, split it.
+- **Link each spec to the scaffold + guardrails:** note which of the ten checks and which L1–L4 layer(s)
+  it exercises, so a reviewer can trace a guardrail back to the spec that required it.
+
+**Traceability check (wire into the CI gate, §9) — `scripts/trace_check.py`:**
+- Every spec ID in `specs/` **must** appear in ≥1 code file **and** ≥1 test → else **FAIL**.
+- A code/test referencing a spec ID that has no spec file → **FAIL**.
+- The PR description must list the spec IDs it closes.
+
+> **Rule for the coding agent:** do **not** write code without a spec ID. If the spec doesn't exist yet,
+> write it first (`SPEC_SKELETON.md` is provided), get it confirmed, then implement — carrying the ID
+> into the code comment, the test, and the PR. Keep `specs/SPECS.md` updated as the index.

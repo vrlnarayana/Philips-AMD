@@ -89,3 +89,25 @@ Keep a short, dated list of what has been built. Append to it at the end of each
 
 - `YYYY-MM-DD` — <what you built / changed>
 - `YYYY-MM-DD` — <…>
+
+## 11. Spec map / traceability
+
+This project is built **spec-first** (see `AGENTS.md` §13). Every behaviour has a `SPEC-<CS>-NNN`
+ID carried `spec → code → test → PR`. The specs live in `specs/`, indexed in `specs/SPECS.md`.
+
+- **Specs:** `specs/SPEC-<CS>-NNN.md` (start from `SPEC_SKELETON.md`) · index: `specs/SPECS.md`
+- **In code:** each implementation carries `# [SPEC-<CS>-NNN] …` on the relevant line(s)
+- **In tests:** `def test_spec_<cs>_<nnn>_<behaviour>(): …`
+- **In the PR/commit:** the title includes `[SPEC-<CS>-NNN]`
+- **Trace check:** `uv run python scripts/trace_check.py` — every spec must appear in ≥1 code file
+  **and** ≥1 test, else the build fails.
+
+```bash
+grep -rn "SPEC-<CS>-007" .    # one ID → its spec, its code, its test, its PR
+```
+
+| Spec ID | Title | Status | Code ref | Test ref | PR |
+|---|---|---|---|---|---|
+| `SPEC-<CS>-001` | <behaviour> | verified | `app/core/…` | `test_spec_<cs>_001_…` | #<n> |
+
+> Keep this table (or a pointer to `specs/SPECS.md`) current — it is the at-a-glance audit map.

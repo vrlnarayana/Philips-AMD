@@ -22,10 +22,11 @@
 
 ## 3. Golden rules for the coding agent
 
-1. Build first, small reviewable steps. 2. Never blind-accept. 3. Six-step cycle every lab step.
-4. Ten-point scaffold (§5) non-negotiable. 5. Guardrails (§6) are part of the build. 6. No secrets;
+1. **Spec-first (§13)** — SDD; **no code without a `SPEC-CS2-NNN` ID**, carried spec → code → test → PR.
+2. Build first, small reviewable steps. 3. Never blind-accept. 4. Six-step cycle every lab step.
+5. Ten-point scaffold (§5) non-negotiable. 6. Guardrails (§6) are part of the build. 7. No secrets;
 no raw model output executed unvalidated.
-7. **Keep `README.md` current (§12)** — document what you build as you build it; update the README in
+8. **Keep `README.md` current (§12)** — document what you build as you build it; update the README in
 the **same** step as the code. A stale README is a defect.
 
 ## 4. Architecture to build
@@ -80,8 +81,9 @@ app/
     llm_client.py
     mcp_tools.py   # knowledge_base_reader, style_guide_library, asset_fetcher, publish_workflow
   api/server.py
-  tests/
-.github/workflows/security.yml
+  tests/           # contract + property tests, LLM mocked; tests carry spec IDs (§13)
+specs/             # one spec per behaviour, SPEC-CS2-NNN (§13); SPECS.md = the index
+.github/workflows/security.yml   # CI gate: scaffold + guardrail self-test + traceability check (§13)
 pyproject.toml · uv.lock · .env.example · AGENTS.md · README.md  (keep updated — §12)
 ```
 
@@ -92,6 +94,7 @@ uv sync --frozen
 uv run uvicorn app.api.server:app --reload
 uv run pytest
 uv run python -m app.core.guardrails --selftest
+uv run python scripts/trace_check.py   # traceability: every spec has code + test (§13)
 ```
 
 ## 10. Definition of Done
@@ -101,14 +104,16 @@ uv run python -m app.core.guardrails --selftest
 - [ ] MCP server live (4 tools) with auth + rate limit + audit
 - [ ] 🔒 Request content that violates brand guidelines → the brand gate holds
 - [ ] Ten-point scaffold passes; CI gate green; committed
+- [ ] **Every behaviour has a `SPEC-CS2-NNN` ID, traced spec → code → test → PR** (§13); trace check green
 - [ ] **`README.md` written and current** — overview, setup, run steps, the 4 tools, guardrails, build log
 
 ## 11. Do / Don't
 
-**Do:** typed `ContentPiece` between agents · flag every unverified claim · keep `publish_workflow` gated ·
+**Do:** **spec-first — write/confirm the spec, then code (§13)** · carry the `SPEC-CS2-NNN` ID into code, test, PR ·
+typed `ContentPiece` between agents · flag every unverified claim · keep `publish_workflow` gated ·
 validate the brief before drafting · commit after each working step · **update `README.md` in the same step as the code**.
-**Don't:** publish without the brand + fact gates · ship unverified claims silently · execute raw tool
-arguments · return raw dicts · import the model SDK in `core/` · **leave the README stale**.
+**Don't:** **write code without a spec ID** · publish without the brand + fact gates · ship unverified claims
+silently · execute raw tool arguments · return raw dicts · import the model SDK in `core/` · **leave the README stale**.
 
 ## 12. Documentation — `README.md` (create and keep updated)
 
@@ -132,3 +137,31 @@ always matches the current code. The `README.md` must contain, in this order:
 
 > **Rule:** add an agent, tool, guardrail, or endpoint → update the matching README section in the same
 > change. Keep it short, accurate, copy-paste runnable. Start from the provided `README_SKELETON.md`.
+
+## 13. Spec-Driven Development (SDD) & Traceability — the method for ALL work
+
+Build CS2 **spec-first**. Nothing is coded until it has a spec with an ID, and that ID is carried all
+the way to the PR. Result: **end-to-end traceability** `spec → code → test → PR`, greppable by one ID.
+
+**Workflow — every behaviour:** (1) write the spec in `specs/` with a `SPEC-CS2-NNN` ID → (2) implement
+and tag the code → (3) write the test referencing the ID → (4) PR title carries the ID → (5) `grep -rn`
+the ID returns spec + code + test.
+
+**Spec ID scheme:** `SPEC-CS2-NNN` (zero-padded, never reused).
+
+**The four anchors — concrete CS2 example:**
+
+| Anchor | Example |
+|---|---|
+| **Spec** | `specs/SPEC-CS2-005.md` — "Brand-safety gate must block off-brand output before publish" (+ row in `specs/SPECS.md`) |
+| **Code** | `# [SPEC-CS2-005] brand-safety post-hook (L3) before publish` |
+| **Test** | `def test_spec_cs2_005_blocks_off_brand_output(): ...` |
+| **PR/commit** | `feat(style): brand-safety gate [SPEC-CS2-005]` |
+
+- A spec is small and testable; link each to its scaffold check(s) and guardrail layer(s).
+- **Traceability check in CI (§9) — `scripts/trace_check.py`:** every `SPEC-CS2-NNN` in `specs/` must
+  appear in ≥1 code file **and** ≥1 test; an orphan spec, or an ID with no spec, is a **FAIL**.
+
+> **Rule for the coding agent:** no code without a spec ID. If it doesn't exist, write the spec first
+> (`SPEC_SKELETON.md` provided), confirm it, then implement — carrying the ID into code, test, and PR.
+> Keep `specs/SPECS.md` updated as the index.
